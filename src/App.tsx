@@ -7,7 +7,6 @@ import { useTheme } from './lib/useTheme';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { Header } from './components/dashboard/Header';
 import { SystemStatusCard } from './components/dashboard/SystemStatusCard';
-import { CommLineCard } from './components/dashboard/CommLineCard';
 import { OperationalActionCard } from './components/dashboard/OperationalActionCard';
 import { AgentRoster } from './components/dashboard/AgentRoster';
 import { DailyMetrics } from './components/dashboard/DailyMetrics';
@@ -30,7 +29,6 @@ function App() {
   const [engineers, setEngineers] = useState<Engineer[]>([]);
   const [appState, setAppState] = useState<AppState | null>(null);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]); // ALL tickets for the day
-  const [metrics, setMetrics] = useState({ tickets: 0, calls: 0 });
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   const fetchAllTickets = async (currentAppState?: AppState) => {
@@ -53,35 +51,6 @@ function App() {
     }
   };
 
-  const fetchTodayMetrics = async (currentAppState?: AppState) => {
-    if (isPlaceholder) return;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const stateToUse = currentAppState || appState;
-    const resetTime = stateToUse?.metrics_reset_at ? new Date(stateToUse.metrics_reset_at) : today;
-    const effectiveStartTime = resetTime > today ? resetTime : today;
-
-    // Fetch Phone Calls
-    const { data: logsData } = await supabase
-      .from('activity_logs')
-      .select('id')
-      .eq('activity_type', 'phone')
-      .gte('started_at', effectiveStartTime.toISOString());
-    
-    // Fetch Resolved Tickets
-    const { data: ticketsData } = await supabase
-      .from('tickets')
-      .select('id')
-      .eq('status', 'closed')
-      .gte('updated_at', effectiveStartTime.toISOString());
-
-    setMetrics({ 
-      tickets: ticketsData?.length || 0, 
-      calls: logsData?.length || 0 
-    });
-  };
-
   useEffect(() => {
     const savedUserId = localStorage.getItem('currentUserId');
     
@@ -93,7 +62,6 @@ function App() {
         const { data: stateData, error: stateError } = await supabase.from('app_state').select('*').eq('id', 1).single();
         if (stateError) throw stateError;
 
-        await fetchTodayMetrics(stateData);
         await fetchAllTickets(stateData);
 
         setEngineers(engData || []);
@@ -107,8 +75,7 @@ function App() {
         console.warn("Supabase not configured or failed to connect. Falling back to Demo Mode.", error);
         setIsDemoMode(true);
         setEngineers(MOCK_ENGINEERS);
-        setAppState({ id: 1, phone_occupied_by: null, updated_at: new Date().toISOString(), metrics_reset_at: new Date().toISOString() });
-        setMetrics({ tickets: 5, calls: 2 }); // Mock data
+        setAppState({ id: 1, updated_at: new Date().toISOString(), metrics_reset_at: new Date().toISOString() });
         if (savedUserId) {
            const user = MOCK_ENGINEERS.find(e => e.id === savedUserId);
            if (user) setCurrentUser(user);
@@ -135,14 +102,13 @@ function App() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, payload => {
             const newState = payload.new as AppState;
             setAppState(newState);
-            fetchTodayMetrics(newState); 
             fetchAllTickets(newState); // Refresh all tickets if reset time changed
             playNotificationSound();
         }).subscribe();
 
         const logsSub = supabase.channel('public:activity_logs')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => {
-            fetchTodayMetrics();
+            // Keep this sub empty but active if other clients need it, or remove it entirely
         }).subscribe();
 
         const ticketsSub = supabase.channel('public:tickets')
@@ -152,9 +118,6 @@ function App() {
             } else if (payload.eventType === 'UPDATE') {
               const updatedTicket = payload.new as Ticket;
               setAllTickets(prev => prev.map(t => t.id === updatedTicket.id ? updatedTicket : t));
-              if (updatedTicket.status === 'closed') {
-                fetchTodayMetrics(); // Refresh metrics since it closed
-              }
             } else if (payload.eventType === 'DELETE') {
               setAllTickets(prev => prev.filter(t => t.id !== payload.old.id));
             }
@@ -207,7 +170,6 @@ function App() {
   const availableEngineers = engineers.filter(e => e.status === 'available');
   const nextUp = availableEngineers.length > 0 ? availableEngineers[0] : null;
   const isMyTurn = currentUser ? nextUp?.id === currentUser.id : false;
-  const phoneOccupant = engineers.find(e => e.id === appState?.phone_occupied_by);
   // Only keep active and suspended tickets in the manager modal (escalated & closed are removed from active workload)
   const myActiveTickets = allTickets.filter(t => t.engineer_id === currentUser?.id && (t.status === 'active' || t.status === 'suspended'));
 
@@ -215,8 +177,7 @@ function App() {
   const teamStats = {
     completed: allTickets.filter(t => t.status === 'closed').length,
     escalated: allTickets.filter(t => t.status === 'escalated').length,
-    suspended: allTickets.filter(t => t.status === 'suspended').length,
-    calls: metrics.calls
+    suspended: allTickets.filter(t => t.status === 'suspended').length
   };
 
   const myStats = {
@@ -231,6 +192,9 @@ function App() {
       if (!currentUser) return;
       
       // Strict Guard Clause: Only allow claiming if it is currently their turn and they are active.
+      if (currentUser.status === 'retreat') {
+        return alert("You are on retreat. Return from retreat to claim tickets.");
+      }
       if (currentUser.status !== 'available') {
         return alert("You must be active/online to claim a ticket.");
       }
@@ -270,70 +234,20 @@ function App() {
       const now = new Date().toISOString();
       if (isDemoMode) {
         setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status, updated_at: now } : t));
-        if (status === 'closed') {
-           setMetrics(prev => ({ ...prev, tickets: prev.tickets + 1 }));
-        }
         return alert("Demo Mode: Status updated.");
       }
       await supabase.from('tickets').update({ status, updated_at: now }).eq('id', ticketId);
   };
 
-  // --- PHONE LOGIC ---
-
-  const togglePhone = async () => {
-      if (!currentUser || !appState) return;
-      
-      const isTakingPhone = appState.phone_occupied_by === null;
-      if (!isTakingPhone && appState.phone_occupied_by !== currentUser.id) {
-          alert("Someone else is currently on the phone!");
-          return;
-      }
-
-      if (isDemoMode) {
-        if (isTakingPhone) setMetrics(prev => ({ ...prev, calls: prev.calls + 1 }));
-        return alert("Demo Mode: Phone state toggled.");
-      }
-
-      const now = new Date().toISOString();
-      const newOccupant = isTakingPhone ? currentUser.id : null;
-      await supabase.from('app_state').update({ phone_occupied_by: newOccupant, updated_at: now }).eq('id', 1);
-      
-      if (isTakingPhone) {
-          await supabase.from('activity_logs').insert([{ engineer_id: currentUser.id, activity_type: 'phone', started_at: now }]);
-      }
-  };
-
-  const undoPhone = async () => {
-      if (!currentUser || !appState) return;
-      if (isDemoMode) {
-        setMetrics(prev => ({ ...prev, calls: Math.max(0, prev.calls - 1) }));
-        return alert("Demo Mode: Mistake undone. Metric reduced.");
-      }
-
-      await supabase.from('app_state').update({ phone_occupied_by: null, updated_at: new Date().toISOString() }).eq('id', 1);
-
-      const { data: latestLogs } = await supabase
-        .from('activity_logs')
-        .select('id')
-        .eq('engineer_id', currentUser.id)
-        .eq('activity_type', 'phone')
-        .order('started_at', { ascending: false })
-        .limit(1);
-
-      if (latestLogs && latestLogs.length > 0) {
-         await supabase.from('activity_logs').delete().eq('id', latestLogs[0].id);
-      }
-  };
-
   const handleResetMetrics = async () => {
     if (isDemoMode) {
-      setMetrics({ tickets: 0, calls: 0 });
       setAllTickets([]);
       return;
     }
     const now = new Date().toISOString();
     await supabase.from('app_state').update({ metrics_reset_at: now, updated_at: now }).eq('id', 1);
   };
+
 
   if (!currentUser) {
     return <AuthScreen engineers={engineers} isDemoMode={isDemoMode} onLogin={handleLogin} theme={theme} toggleTheme={toggleTheme} />;
@@ -355,15 +269,8 @@ function App() {
         {activeTab === 'dashboard' ? (
           <>
             {/* TOP ROW */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <SystemStatusCard currentUser={currentUser} isMyTurn={isMyTurn} myTickets={myActiveTickets} toggleRetreat={toggleRetreat} />
-                <CommLineCard 
-                  appState={appState} 
-                  currentUser={currentUser} 
-                  phoneOccupant={phoneOccupant} 
-                  togglePhone={togglePhone} 
-                  undoPhone={undoPhone}
-                />
                 <OperationalActionCard 
                   currentUser={currentUser}
                   isMyTurn={isMyTurn} 

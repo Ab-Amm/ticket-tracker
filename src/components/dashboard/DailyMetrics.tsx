@@ -1,7 +1,7 @@
-import { RefreshCw, BarChart3, CheckCircle2, ArrowUpRight, PauseCircle, PhoneCall } from 'lucide-react';
+import { RefreshCw, BarChart3, CheckCircle2, ArrowUpRight, PauseCircle } from 'lucide-react';
 
 interface DailyMetricsProps {
-  teamStats: { completed: number; escalated: number; suspended: number; calls: number };
+  teamStats: { completed: number; escalated: number; suspended: number };
   myStats: { completed: number; escalated: number; suspended: number };
   onReset: () => void;
 }
@@ -36,7 +36,7 @@ export function DailyMetrics({ teamStats, myStats, onReset }: DailyMetricsProps)
           <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
             Team Dashboard (Global)
           </h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-[#334155] p-3 rounded-lg flex flex-col justify-between transition-colors">
               <div className="flex items-center gap-1.5 mb-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-teal-500" />
@@ -59,14 +59,6 @@ export function DailyMetrics({ teamStats, myStats, onReset }: DailyMetricsProps)
                 <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Suspended</span>
               </div>
               <span className="text-2xl font-light text-slate-900 dark:text-white">{teamStats.suspended}</span>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-[#334155] p-3 rounded-lg flex flex-col justify-between transition-colors">
-              <div className="flex items-center gap-1.5 mb-2">
-                <PhoneCall className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Calls</span>
-              </div>
-              <span className="text-2xl font-light text-slate-900 dark:text-white">{teamStats.calls}</span>
             </div>
           </div>
         </div>

@@ -15,7 +15,6 @@ export type Engineer = {
 
 export type AppState = {
   id: number;
-  phone_occupied_by: string | null;
   updated_at: string;
   metrics_reset_at: string;
 };
@@ -23,7 +22,7 @@ export type AppState = {
 export type ActivityLog = {
   id: string;
   engineer_id: string;
-  activity_type: 'ticket' | 'phone';
+  activity_type: 'ticket';
   started_at: string;
   ended_at: string | null;
 };
