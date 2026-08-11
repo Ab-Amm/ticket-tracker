@@ -27,20 +27,23 @@ export function WeeklyPlanning({ currentUser }: WeeklyPlanningProps) {
     const sunday = new Date(monday);
     sunday.setDate(sunday.getDate() + 6);
 
-    // Benchmark Monday: January 1, 2024 was a Monday.
-    const benchmark = new Date(2024, 0, 1);
+    // Benchmark Monday: We set this to the week of August 3, 2026.
+    // This locks in the 0 offset so the schedule exactly matches the user's requirement for this week.
+    // Every subsequent Monday from this date will increment the offset by 1.
+    const benchmark = new Date(2026, 7, 3); // August 3, 2026 (Month is 0-indexed, so 7 is August)
     
     // Use UTC for diffing to avoid Daylight Savings Time (DST) fractions
     const utcMonday = Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate());
     const utcBenchmark = Date.UTC(benchmark.getFullYear(), benchmark.getMonth(), benchmark.getDate());
     
     const msInWeek = 7 * 24 * 60 * 60 * 1000;
-    const weeksPassed = Math.round((utcMonday - utcBenchmark) / msInWeek);
+    // Calculate weeks passed. If we are somehow looking at a date before the benchmark, we max to 0.
+    const weeksPassed = Math.max(0, Math.round((utcMonday - utcBenchmark) / msInWeek));
 
     const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     return {
-       weeksPassed: Math.max(0, weeksPassed),
+       weeksPassed,
        dateRange: `${formatDate(monday)} - ${formatDate(sunday)}`
     };
   };
