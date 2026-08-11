@@ -7,7 +7,7 @@ interface WeeklyPlanningProps {
 }
 
 // The base sequence of people and shifts defined by the user
-const BASE_PEOPLE = ['Salma K', 'Aimad', 'Otmane', 'Salma M', 'Abderrahmane'];
+const BASE_PEOPLE = ['Abderrahmane', 'Salma K', 'Aimad', 'Otmane', 'Salma M'];
 const SHIFTS = ['6:00 AM', '7:00 AM', '7:30 AM', '8:00 AM', '8:00 AM'];
 
 export function WeeklyPlanning({ currentUser }: WeeklyPlanningProps) {
