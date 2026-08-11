@@ -10,6 +10,7 @@ import { SystemStatusCard } from './components/dashboard/SystemStatusCard';
 import { OperationalActionCard } from './components/dashboard/OperationalActionCard';
 import { AgentRoster } from './components/dashboard/AgentRoster';
 import { DailyMetrics } from './components/dashboard/DailyMetrics';
+import { WeeklyPlanning } from './components/dashboard/WeeklyPlanning';
 import { SuiviTab } from './components/suivi/SuiviTab';
 
 const MOCK_ENGINEERS: Engineer[] = [
@@ -283,6 +284,11 @@ function App() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <AgentRoster engineers={engineers} currentUser={currentUser} nextUp={nextUp} tickets={allTickets} />
                 <DailyMetrics teamStats={teamStats} myStats={myStats} onReset={handleResetMetrics} />
+            </div>
+
+            {/* WEEKLY PLANNING ROW */}
+            <div className="grid grid-cols-1 gap-6">
+                <WeeklyPlanning currentUser={currentUser} />
             </div>
           </>
         ) : (
