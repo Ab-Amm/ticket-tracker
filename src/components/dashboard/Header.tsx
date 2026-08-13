@@ -1,4 +1,4 @@
-import { Activity, LogOut, Sun, Moon, LayoutDashboard, ClipboardList } from 'lucide-react';
+import { Activity, LogOut, Sun, Moon, LayoutDashboard, ClipboardList, MessageSquareText } from 'lucide-react';
 import { getInitials } from '../../lib/utils';
 import type { Engineer } from '../../lib/supabase';
 
@@ -7,8 +7,8 @@ interface HeaderProps {
   logout: () => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
-  activeTab: 'dashboard' | 'suivi';
-  setActiveTab: (tab: 'dashboard' | 'suivi') => void;
+  activeTab: 'dashboard' | 'suivi' | 'notes';
+  setActiveTab: (tab: 'dashboard' | 'suivi' | 'notes') => void;
 }
 
 export function Header({ currentUser, logout, theme, toggleTheme, activeTab, setActiveTab }: HeaderProps) {
@@ -24,7 +24,7 @@ export function Header({ currentUser, logout, theme, toggleTheme, activeTab, set
         </div>
 
         {/* Center: Tabs */}
-        <div className="flex justify-center items-center gap-2 sm:gap-6">
+        <div className="flex justify-center items-center gap-2 sm:gap-4 lg:gap-6 w-[350px] lg:w-auto -ml-10 lg:ml-0">
           <button 
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
@@ -34,7 +34,7 @@ export function Header({ currentUser, logout, theme, toggleTheme, activeTab, set
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
-            <span className="hidden sm:block">Dashboard</span>
+            <span className="hidden lg:block">Dashboard</span>
           </button>
           
           <button 
@@ -46,7 +46,19 @@ export function Header({ currentUser, logout, theme, toggleTheme, activeTab, set
             }`}
           >
             <ClipboardList className="w-3.5 h-3.5" />
-            <span className="hidden sm:block">Suivi</span>
+            <span className="hidden lg:block">Suivi</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('notes')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+              activeTab === 'notes' 
+                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <MessageSquareText className="w-3.5 h-3.5" />
+            <span className="hidden lg:block">Notes</span>
           </button>
         </div>
 

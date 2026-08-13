@@ -35,3 +35,10 @@ export type Ticket = {
   created_at: string;
   updated_at: string;
 };
+
+export type Note = {
+  id: string;
+  engineer_id: string;
+  content: string;
+  created_at: string;
+};

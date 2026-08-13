@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, isPlaceholder } from './lib/supabase';
-import type { Engineer, AppState, Ticket } from './lib/supabase';
+import type { Engineer, AppState, Ticket, Note } from './lib/supabase';
 import { useTheme } from './lib/useTheme';
 
 // Components
@@ -12,6 +12,7 @@ import { AgentRoster } from './components/dashboard/AgentRoster';
 import { DailyMetrics } from './components/dashboard/DailyMetrics';
 import { WeeklyPlanning } from './components/dashboard/WeeklyPlanning';
 import { SuiviTab } from './components/suivi/SuiviTab';
+import { SharedNotesTab } from './components/notes/SharedNotesTab';
 
 const MOCK_ENGINEERS: Engineer[] = [
   { id: '1', name: 'Abderrahmane', status: 'available', last_ticket_assigned_at: new Date(Date.now() - 10000).toISOString() },
@@ -24,12 +25,13 @@ const MOCK_ENGINEERS: Engineer[] = [
 function App() {
   const { theme, toggleTheme } = useTheme();
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'suivi'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'suivi' | 'notes'>('dashboard');
   
   const [currentUser, setCurrentUser] = useState<Engineer | null>(null);
   const [engineers, setEngineers] = useState<Engineer[]>([]);
   const [appState, setAppState] = useState<AppState | null>(null);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]); // ALL tickets for the day
+  const [notes, setNotes] = useState<Note[]>([]); // ALL notes
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   const fetchAllTickets = async (currentAppState?: AppState) => {
@@ -52,6 +54,16 @@ function App() {
     }
   };
 
+  const fetchNotes = async () => {
+    if (isPlaceholder) return;
+    const { data } = await supabase
+      .from('notes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (data) setNotes(data);
+  };
+
   useEffect(() => {
     const savedUserId = localStorage.getItem('currentUserId');
     
@@ -64,6 +76,7 @@ function App() {
         if (stateError) throw stateError;
 
         await fetchAllTickets(stateData);
+        await fetchNotes();
 
         setEngineers(engData || []);
         setAppState(stateData);
@@ -107,11 +120,6 @@ function App() {
             playNotificationSound();
         }).subscribe();
 
-        const logsSub = supabase.channel('public:activity_logs')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => {
-            // Keep this sub empty but active if other clients need it, or remove it entirely
-        }).subscribe();
-
         const ticketsSub = supabase.channel('public:tickets')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
@@ -124,11 +132,21 @@ function App() {
             }
         }).subscribe();
 
+        const notesSub = supabase.channel('public:notes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, (payload) => {
+            if (payload.eventType === 'INSERT') {
+              setNotes(prev => [payload.new as Note, ...prev]);
+              playNotificationSound();
+            } else if (payload.eventType === 'DELETE') {
+              setNotes(prev => prev.filter(n => n.id !== payload.old.id));
+            }
+        }).subscribe();
+
         return () => {
           supabase.removeChannel(engSub);
           supabase.removeChannel(stateSub);
-          supabase.removeChannel(logsSub);
           supabase.removeChannel(ticketsSub);
+          supabase.removeChannel(notesSub);
         };
     }
   }, [currentUser?.id]);
@@ -165,6 +183,28 @@ function App() {
       return alert(`Demo Mode: Status changed to ${newStatus}.`);
     }
     await supabase.from('engineers').update({ status: newStatus }).eq('id', currentUser.id);
+  };
+
+  const addNote = async (content: string) => {
+    if (!currentUser) return;
+    const now = new Date().toISOString();
+    
+    if (isDemoMode) {
+      const mockNote: Note = {
+        id: Math.random().toString(),
+        engineer_id: currentUser.id,
+        content,
+        created_at: now
+      };
+      setNotes(prev => [mockNote, ...prev]);
+      return alert("Demo Mode: Note added.");
+    }
+
+    await supabase.from('notes').insert([{
+      engineer_id: currentUser.id,
+      content,
+      created_at: now
+    }]);
   };
 
   // --- DERIVED STATE ---
@@ -291,7 +331,7 @@ function App() {
                 <WeeklyPlanning currentUser={currentUser} />
             </div>
           </>
-        ) : (
+        ) : activeTab === 'suivi' ? (
           <SuiviTab 
             engineers={engineers} 
             allTickets={allTickets} 
@@ -299,6 +339,13 @@ function App() {
             nextUp={nextUp} 
             onClaim={claimNextTicket} 
             onUpdateStatus={updateTicketStatus} 
+          />
+        ) : (
+          <SharedNotesTab
+             engineers={engineers}
+             notes={notes}
+             currentUser={currentUser}
+             onAddNote={addNote}
           />
         )}
 
